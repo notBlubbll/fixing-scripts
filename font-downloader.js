@@ -1,37 +1,34 @@
 (function() {
   const OriginalFontFace = window.FontFace;
-  const fontCounts = new Map();
+  const fontTracker = new Map();
 
   window.FontFace = function(family, source, descriptors) {
     const cleanFamily = family.replace(/['"]/g, '').trim();
 
     if (source instanceof ArrayBuffer || ArrayBuffer.isView(source)) {
-      // Extract binary buffer safely
-      let buffer;
-      if (ArrayBuffer.isView(source)) {
-        buffer = source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
-      } else {
-        buffer = source;
-      }
+      // Safely extract binary buffer
+      let buffer = ArrayBuffer.isView(source) 
+        ? source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength) 
+        : source;
 
-      // Track occurrence count per font family name
-      const count = (fontCounts.get(cleanFamily) || 0) + 1;
-      fontCounts.set(cleanFamily, count);
+      // Track occurrence count for this font family
+      const count = (fontTracker.get(cleanFamily) || 0) + 1;
+      fontTracker.set(cleanFamily, count);
 
-      let ext = 'woff';
-      let fileName = `${cleanFamily}.woff`;
-
-      if (count === 2) {
-        ext = 'woff2';
+      // Determine file name based on load order
+      let fileName;
+      if (count === 1) {
         fileName = `${cleanFamily}.woff2`;
-      } else if (count > 2) {
-        ext = 'woff2';
-        fileName = `${cleanFamily}_${count}.woff2`;
+      } else if (count === 2) {
+        fileName = `${cleanFamily}_subset.woff2`;
+      } else {
+        fileName = `${cleanFamily}_subset${count - 1}.woff2`;
       }
 
-      console.log(`[Font Interceptor] Intercepted (#${count}): ${fileName} (${(buffer.byteLength / 1024).toFixed(2)} KB)`);
+      console.log(`[Font Interceptor] Intercepted (#${count}): %c${fileName}%c (${(buffer.byteLength / 1024).toFixed(2)} KB)`, "color: #27ae60; font-weight: bold", "");
 
-      const blob = new Blob([buffer], { type: `font/${ext}` });
+      // Trigger immediate download
+      const blob = new Blob([buffer], { type: 'font/woff2' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = fileName;
@@ -46,5 +43,5 @@
   };
 
   window.FontFace.prototype = OriginalFontFace.prototype;
-  console.log('⚡ Interceptor Active: 1st load = .woff, 2nd load = .woff2');
+  console.log('⚡ Interceptor Active: File #1 = FontName.woff2, File #2 = FontName_subset.woff2');
 })();
