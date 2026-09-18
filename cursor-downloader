@@ -1,0 +1,51 @@
+(async () => {
+    // 1. Select all target images
+    const images = document.querySelectorAll('a.item-img img');
+    const urls = new Set();
+
+    // 2. Extract and transform URLs
+    images.forEach(img => {
+        let src = img.src || img.getAttribute('src');
+        if (src) {
+            // Replace '/medium/' with '/' to get the real full-size image
+            let realUrl = src.replace('/medium/', '/');
+            urls.add(realUrl);
+        }
+    });
+
+    console.log(`Found ${urls.size} unique images. Starting downloads...`);
+
+    let index = 1;
+    for (const url of urls) {
+        try {
+            // Fetch the image as a blob to bypass CORS/display issues and force download
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            
+            // Create a hidden anchor tag to trigger the download
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = blobUrl;
+            
+            // Extract filename from URL
+            const filename = url.split('/').pop().split('?')[0] || `cursor_${index}.png`;
+            a.download = `${index}_${filename}`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up memory
+            window.URL.revokeObjectURL(blobUrl);
+            console.log(`[${index}/${urls.size}] Downloaded: ${filename}`);
+            index++;
+            
+            // Slight delay (300ms) to prevent the browser from blocking multiple rapid downloads
+            await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (err) {
+            console.error(`Failed to download ${url}:`, err);
+        }
+    }
+    console.log('All downloads completed!');
+})();
