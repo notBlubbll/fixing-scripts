@@ -1,50 +1,58 @@
 (async () => {
-    // 1. Select all target images
-    const images = document.querySelectorAll('a.item-img img');
-    const urls = new Set();
+    // 1. Select container elements that link to the cursor page and contain the image
+    const items = document.querySelectorAll('a.item-img');
+    const downloadList = [];
 
-    // 2. Extract and transform URLs
-    images.forEach(img => {
+    // 2. Extract inner title and transformed image URL
+    items.forEach(item => {
+        const img = item.querySelector('img');
+        if (!img) return;
+
         let src = img.src || img.getAttribute('src');
-        if (src) {
-            // Replace '/medium/' with '/' to get the real full-size image
-            let realUrl = src.replace('/medium/', '/');
-            urls.add(realUrl);
-        }
+        if (!src) return;
+
+        // Transform URL: replace '/medium/' with '/' to get the full-size image
+        let realUrl = src.replace('/medium/', '/');
+
+        // Extract title, clean unsafe file characters (like / \ : * ? " < > |), but keep spaces
+        let rawTitle = item.getAttribute('title') || img.getAttribute('alt') || 'cursor';
+        let safeName = rawTitle.replace(/[/\\?%*:|"<>]/g, '').trim();
+
+        // Get file extension (.png, etc.) from the URL
+        let extension = realUrl.split('.').pop().split('?')[0] || 'png';
+
+        downloadList.push({
+            url: realUrl,
+            filename: `${safeName}.${extension}`
+        });
     });
 
-    console.log(`Found ${urls.size} unique images. Starting downloads...`);
+    console.log(`Found ${downloadList.length} images. Starting downloads...`);
 
     let index = 1;
-    for (const url of urls) {
+    for (const item of downloadList) {
         try {
-            // Fetch the image as a blob to bypass CORS/display issues and force download
-            const response = await fetch(url);
+            const response = await fetch(item.url);
             const blob = await response.blob();
             const blobUrl = window.URL.createObjectURL(blob);
             
-            // Create a hidden anchor tag to trigger the download
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = blobUrl;
-            
-            // Extract filename from URL
-            const filename = url.split('/').pop().split('?')[0] || `cursor_${index}.png`;
-            a.download = `${index}_${filename}`;
+            a.download = item.filename;
             
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             
-            // Clean up memory
             window.URL.revokeObjectURL(blobUrl);
-            console.log(`[${index}/${urls.size}] Downloaded: ${filename}`);
+            console.log(`[${index}/${downloadList.length}] Downloaded: ${item.filename}`);
             index++;
             
-            // Slight delay (300ms) to prevent the browser from blocking multiple rapid downloads
+            // 300ms delay to prevent browser blocking rapid bulk downloads
             await new Promise(resolve => setTimeout(resolve, 300));
         } catch (err) {
-            console.error(`Failed to download ${url}:`, err);
+            console.error(`Failed to download ${item.filename}:`, err);
         }
     }
     console.log('All downloads completed!');
